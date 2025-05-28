@@ -714,7 +714,7 @@ class ResourceMonitor(Window):
         self.update_timer = QTimer(self)
         self.update_timer.timeout.connect(self.update_process_list)
         self.update_timer.start(1000)  # Update every second
-
+        self.pid = ProcessManager().create_process("Resource Monitor")
         # Initial update
         self.update_process_list()
 
@@ -751,6 +751,7 @@ class ResourceMonitor(Window):
             self.process_table.setItem(row, 4, cpu_usage_item)
 
     def closeEvent(self, event):
+        ProcessManager().terminate_process(self.pid)
         self.update_timer.stop()
         super().closeEvent(event)
 
