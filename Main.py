@@ -1394,7 +1394,11 @@ class Terminal(Window):
         self.content_layout.addWidget(self.command_input)
 
         # Set initial current directory to user's home folder (more Windows-like)
-        self.current_dir = os.path.expanduser("~")
+        # Set initial current directory to actual location
+        self.current_dir = r"C:\Users\anasa\Desktop\Py-OS\My PC\Local Disk C"
+
+        # Set display name (e.g., to mimic 'C:' instead of long path)
+        self.display_name = "C:"
 
         # Display welcome message and prompt
         self.write_output("Welcome to Py-OS Terminal (Windows Based)")
@@ -1410,9 +1414,7 @@ class Terminal(Window):
         scrollbar.setValue(scrollbar.maximum())
 
     def display_prompt(self):
-        # Show just the folder name, like Windows cmd
-        folder_name = os.path.basename(self.current_dir) or self.current_dir
-        prompt_text = f"{folder_name}> "
+        prompt_text = f"{self.display_name}> "
         self.write_output(prompt_text)
         self.command_input.setFocus()
 
@@ -1425,7 +1427,7 @@ class Terminal(Window):
 
         # Echo the command input in output window (like real terminals do)
         folder_name = os.path.basename(self.current_dir) or self.current_dir
-        self.write_output(f"{folder_name}> {command}")
+        self.write_output(f"{self.display_name}> {command}")
 
         self.command_input.clear()
 
