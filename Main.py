@@ -272,31 +272,29 @@ class Taskbar(QFrame):
         self.start_button.setFixedSize(40, 40)
         layout.addWidget(self.start_button, alignment=Qt.AlignVCenter)
 
-
-        # 🔹 Search bar (like Windows)
+        # Search bar
         self.search_bar = QLineEdit()
         self.search_bar.setPlaceholderText("Type here to search")
         self.search_bar.setFixedHeight(30)
         self.search_bar.setFixedWidth(250)
         self.search_bar.setStyleSheet("""
-    QLineEdit {
-        background-color: rgba(240, 240, 240, 0.4);  /* 40% opacity */
-        border: 1px solid #ccc;
-        border-radius: 6px;
-        padding-left: 10px;
-        font-size: 13px;
-    }
-    QLineEdit:focus {
-        border: 1px solid #0078d7;
-        background-color: rgba(255, 255, 255, 0.4);  /* 40% opacity on focus */
-    }
-""")
+            QLineEdit {
+                background-color: rgba(240, 240, 240, 0.4);
+                border: 1px solid #ccc;
+                border-radius: 6px;
+                padding-left: 10px;
+                font-size: 13px;
+            }
+            QLineEdit:focus {
+                border: 1px solid #0078d7;
+                background-color: rgba(255, 255, 255, 0.4);
+            }
+        """)
+        self.search_bar.returnPressed.connect(self.perform_search)
         layout.addWidget(self.search_bar, alignment=Qt.AlignVCenter)
 
-        # Spacer to push clock to right
         layout.addStretch()
 
-        # System tray icons (volume, wifi, battery)
         for name in ["volume", "wifi", "battery"]:
             icon_label = QLabel()
             icon_label.setObjectName("trayIcon")
@@ -304,7 +302,8 @@ class Taskbar(QFrame):
             icon_label.setPixmap(QIcon(icon_path).pixmap(20, 20))
             icon_label.setToolTip(f"{name.capitalize()} status")
             layout.addWidget(icon_label)
-#clock
+
+        # Clock
         self.clock_label = QLabel()
         self.clock_label.setObjectName("clockLabel")
         self.clock_label.setAlignment(Qt.AlignVCenter | Qt.AlignRight)
@@ -326,8 +325,16 @@ class Taskbar(QFrame):
 
     def update_clock(self):
         now = QDateTime.currentDateTime()
-        time_str = now.toString("hh:mm AP\nddd dd MMM")  # Windows-style format
+        time_str = now.toString("hh:mm AP\nddd dd MMM")
         self.clock_label.setText(time_str)
+
+    def perform_search(self):
+        query = self.search_bar.text().strip().lower()
+        if query:
+            # For demo: Show a message box (in real apps, you'd search apps/files/settings)
+            QMessageBox.information(self, "Search", f"No results found for \"{query}\".")
+        else:
+            QMessageBox.warning(self, "Search", "Please type something to search.")
 
     def closeEvent(self, event):
         self.timer.stop()
