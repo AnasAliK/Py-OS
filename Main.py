@@ -435,22 +435,52 @@ class Window(QFrame):
         super().mouseReleaseEvent(event)
 
 
+
+
 class StartMenu(QFrame):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowFlags(Qt.Popup)
+        self.setFixedSize(300, 450)
+
         self.setStyleSheet("""
             QFrame {
-                background-color: #2a2a2a;
-                border: 2px solid #0078d7;
-                border-radius: 8px;
-                padding: 10px;
+                background-color: #1e1e1e;
+                border: 1px solid #3c3c3c;
+                border-radius: 10px;
+            }
+            QLineEdit {
+                background-color: #2e2e2e;
+                border: 1px solid #555;
+                border-radius: 6px;
+                padding: 6px 10px;
+                color: white;
+            }
+            QPushButton {
+                background-color: transparent;
+                color: white;
+                text-align: left;
+                padding: 8px 10px;
+                border: none;
+                font-size: 14px;
+                border-radius: 6px;
+            }
+            QPushButton:hover {
+                background-color: #0078d7;
             }
         """)
-        self.setFixedSize(220, 350)
-        layout = QVBoxLayout()
-        self.setLayout(layout)
 
+        main_layout = QVBoxLayout(self)
+        main_layout.setContentsMargins(10, 10, 10, 10)
+        main_layout.setSpacing(10)
+
+        # Search bar
+        self.search_bar = QLineEdit()
+        self.search_bar.setPlaceholderText("Search apps")
+        main_layout.addWidget(self.search_bar)
+
+        # App buttons
+        self.app_layout = QVBoxLayout()
         app_list = [
             ("File Explorer", "icons/folder.png"),
             ("Notepad", "icons/notepad.png"),
@@ -465,18 +495,47 @@ class StartMenu(QFrame):
         for app_name, icon_path in app_list:
             btn = QPushButton(app_name)
             btn.setIcon(QIcon(icon_path))
-            btn.setIconSize(QSize(24, 24))
+            btn.setIconSize(QSize(20, 20))
             btn.clicked.connect(lambda checked, name=app_name: self.launch_app(name))
-            layout.addWidget(btn)
+            self.app_layout.addWidget(btn)
 
-        layout.addStretch()
+        # Add app list to a container layout
+        app_container = QFrame()
+        app_container.setLayout(self.app_layout)
+        main_layout.addWidget(app_container)
+
+        main_layout.addStretch()
+
+        # Bottom section for user & power (optional)
+        bottom_layout = QHBoxLayout()
+        user_label = QLabel("👤 User")
+        user_label.setStyleSheet("color: white; font-size: 13px;")
+        bottom_layout.addWidget(user_label)
+
+        bottom_layout.addStretch()
+
+        power_btn = QPushButton("⏻")
+        power_btn.setToolTip("Shut Down / Sign Out (simulated)")
+        power_btn.setFixedSize(32, 32)
+        power_btn.setStyleSheet("""
+            QPushButton {
+                color: white;
+                font-size: 16px;
+                border-radius: 6px;
+                background-color: #333;
+            }
+            QPushButton:hover {
+                background-color: #444;
+            }
+        """)
+        bottom_layout.addWidget(power_btn)
+        main_layout.addLayout(bottom_layout)
 
     def launch_app(self, app_name):
         try:
             window = None
-            desktop = self.parent()  # Get the DesktopWindow instance
+            desktop = self.parent()
 
-            # Create new window, passing the desktop as parent
             if app_name == "Calculator":
                 window = Calculator(desktop)
             elif app_name == "Notepad":
@@ -494,13 +553,13 @@ class StartMenu(QFrame):
 
             if window:
                 window.show()
-                desktop.open_windows.append(window)  # Add to the list of open windows
+                desktop.open_windows.append(window)
+
             self.hide()
 
         except Exception as e:
             print(f"Error launching {app_name}: {str(e)}")
             QMessageBox.critical(self, "Error", f"Failed to launch {app_name}: {str(e)}")
-
 
 from PyQt5.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout
 from PyQt5.QtCore import Qt, QPoint
@@ -846,96 +905,103 @@ class ResourceMonitor(Window):
         super().closeEvent(event)
 
 
+from PyQt5.QtWidgets import (
+    QLabel, QPushButton, QHBoxLayout, QVBoxLayout, QProgressBar, QTableWidgetItem,
+    QHeaderView, QTableWidget
+)
+from PyQt5.QtCore import Qt, QTimer
+import time
+import random  # for mock CPU/memory usage
+
 class TaskManager(Window):
     def __init__(self, parent=None):
-        super().__init__("Task Manager", width=500, height=400, parent=parent)
+        super().__init__("", width=700, height=500, parent=parent)
 
-        # Process table
-        self.process_table = QTableWidget()
-        self.process_table.setColumnCount(4)
-        self.process_table.setHorizontalHeaderLabels(["PID", "Name", "Status", "Running Time"])
-        self.process_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
-        self.process_table.setSelectionBehavior(QTableWidget.SelectRows)
-        self.process_table.setSelectionMode(QTableWidget.SingleSelection)
-        self.process_table.setStyleSheet("""
-            QTableWidget {
-                background-color: #333;
+        self.setStyleSheet("""
+            QLabel#titleLabel {
+                font-size: 20px;
+                font-weight: bold;
                 color: white;
-                gridline-color: #444;
-                border: 1px solid #444;
-                border-radius: 5px;
+                padding: 8px;
+            }
+            QWidget {
+                background-color: #202020;
+                color: white;
+            }
+            QTableWidget {
+                background-color: #2a2a2a;
+                border: none;
+                font-size: 12px;
             }
             QHeaderView::section {
-                background-color: #444;
+                background-color: #383838;
                 color: white;
                 padding: 5px;
-                border: 1px solid #555;
-            }
-            QTableWidget::item {
-                padding: 5px;
+                border: 1px solid #444;
             }
             QTableWidget::item:selected {
                 background-color: #0078d7;
+                color: white;
             }
-        """)
-        self.content_layout.addWidget(self.process_table)
-
-        # Buttons layout
-        buttons_layout = QHBoxLayout()
-
-        # Refresh button
-        self.refresh_btn = QPushButton("Refresh")
-        self.refresh_btn.clicked.connect(self.update_process_list)
-        self.refresh_btn.setStyleSheet("""
             QPushButton {
+                background-color: #3a3a3a;
+                color: white;
+                padding: 6px 16px;
+                font-weight: bold;
+                border-radius: 4px;
+                border: 1px solid #444;
+            }
+            QPushButton:hover {
                 background-color: #0078d7;
-                color: white;
-                padding: 8px 15px;
-                border-radius: 5px;
-            }
-            QPushButton:hover {
-                background-color: #005a9e;
-            }
-        """)
-        buttons_layout.addWidget(self.refresh_btn)
-
-        # End Process button
-        self.end_process_btn = QPushButton("End Process")
-        self.end_process_btn.clicked.connect(self.end_selected_process)
-        self.end_process_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #d35400;
-                color: white;
-                padding: 8px 15px;
-                border-radius: 5px;
-            }
-            QPushButton:hover {
-                background-color: #e67e22;
             }
             QPushButton:disabled {
-                background-color: #7f8c8d;
-                color: #bdc3c7;
+                background-color: #555;
+                color: #aaa;
             }
         """)
+
+        # Title
+        title_label = QLabel("Task Manager")
+        title_label.setObjectName("titleLabel")
+        self.content_layout.addWidget(title_label)
+
+        # Process table
+        self.process_table = QTableWidget()
+        self.process_table.setColumnCount(6)
+        self.process_table.setHorizontalHeaderLabels([
+            "PID", "Name", "Status", "CPU %", "Memory %", "Time"
+        ])
+        self.process_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        self.process_table.setSelectionBehavior(QTableWidget.SelectRows)
+        self.process_table.setSelectionMode(QTableWidget.SingleSelection)
+        self.content_layout.addWidget(self.process_table)
+
+        # Buttons
+        buttons_layout = QHBoxLayout()
+        buttons_layout.setSpacing(10)
+        buttons_layout.setContentsMargins(0, 10, 0, 0)
+
+        self.refresh_btn = QPushButton("⟳ Refresh")
+        self.refresh_btn.clicked.connect(self.update_process_list)
+        buttons_layout.addWidget(self.refresh_btn)
+
+        self.end_process_btn = QPushButton("✖ End Task")
+        self.end_process_btn.clicked.connect(self.end_selected_process)
         buttons_layout.addWidget(self.end_process_btn)
 
         self.content_layout.addLayout(buttons_layout)
 
-        # Register as process
+        # Register Task Manager process
         self.pid = ProcessManager().create_process("Task Manager")
 
-        # Update timer
+        # Timer
         self.update_timer = QTimer(self)
         self.update_timer.timeout.connect(self.update_process_list)
-        self.update_timer.start(1000)  # Update every second
+        self.update_timer.start(1000)
 
-        # Initial update
-        self.update_process_list()
-
-        # Connect selection change to update button state
         self.process_table.itemSelectionChanged.connect(self.update_button_state)
 
-        # Initial button state
+        self.update_process_list()
         self.update_button_state()
 
     def update_button_state(self):
@@ -968,14 +1034,28 @@ class TaskManager(Window):
             status_item.setTextAlignment(Qt.AlignCenter)
             self.process_table.setItem(row, 2, status_item)
 
-            # Running Time
+            # Simulated CPU % bar
+            cpu_percent = random.randint(1, 50)
+            cpu_bar = QProgressBar()
+            cpu_bar.setValue(cpu_percent)
+            cpu_bar.setStyleSheet("QProgressBar::chunk { background-color: #4caf50; }")
+            self.process_table.setCellWidget(row, 3, cpu_bar)
+
+            # Simulated Memory % bar
+            mem_percent = random.randint(1, 80)
+            mem_bar = QProgressBar()
+            mem_bar.setValue(mem_percent)
+            mem_bar.setStyleSheet("QProgressBar::chunk { background-color: #2196f3; }")
+            self.process_table.setCellWidget(row, 4, mem_bar)
+
+            # Time
             running_time = int(time.time() - process.start_time)
             minutes = running_time // 60
             seconds = running_time % 60
             time_str = f"{minutes:02d}:{seconds:02d}"
             time_item = QTableWidgetItem(time_str)
             time_item.setTextAlignment(Qt.AlignCenter)
-            self.process_table.setItem(row, 3, time_item)
+            self.process_table.setItem(row, 5, time_item)
 
     def end_selected_process(self):
         selected_items = self.process_table.selectedItems()
@@ -983,11 +1063,9 @@ class TaskManager(Window):
             row = selected_items[0].row()
             pid = int(self.process_table.item(row, 0).text())
 
-            # Don't allow terminating self
             if pid == self.pid:
                 return
 
-            # Find the window associated with this PID
             for window in self.parent().findChildren(Window):
                 if hasattr(window, 'pid') and window.pid == pid:
                     window.close()
@@ -1158,162 +1236,6 @@ class Notepad(Window):
             event.ignore()
 
 
-class TaskManager(Window):
-    def __init__(self, parent=None):
-        super().__init__("Task Manager", width=500, height=400, parent=parent)
-
-        # Process table
-        self.process_table = QTableWidget()
-        self.process_table.setColumnCount(4)
-        self.process_table.setHorizontalHeaderLabels(["PID", "Name", "Status", "Running Time"])
-        self.process_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
-        self.process_table.setSelectionBehavior(QTableWidget.SelectRows)
-        self.process_table.setSelectionMode(QTableWidget.SingleSelection)
-        self.process_table.setStyleSheet("""
-            QTableWidget {
-                background-color: #333;
-                color: white;
-                gridline-color: #444;
-                border: 1px solid #444;
-                border-radius: 5px;
-            }
-            QHeaderView::section {
-                background-color: #444;
-                color: white;
-                padding: 5px;
-                border: 1px solid #555;
-            }
-            QTableWidget::item {
-                padding: 5px;
-            }
-            QTableWidget::item:selected {
-                background-color: #0078d7;
-            }
-        """)
-        self.content_layout.addWidget(self.process_table)
-
-        # Buttons layout
-        buttons_layout = QHBoxLayout()
-
-        # Refresh button
-        self.refresh_btn = QPushButton("Refresh")
-        self.refresh_btn.clicked.connect(self.update_process_list)
-        self.refresh_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #0078d7;
-                color: white;
-                padding: 8px 15px;
-                border-radius: 5px;
-            }
-            QPushButton:hover {
-                background-color: #005a9e;
-            }
-        """)
-        buttons_layout.addWidget(self.refresh_btn)
-
-        # End Process button
-        self.end_process_btn = QPushButton("End Process")
-        self.end_process_btn.clicked.connect(self.end_selected_process)
-        self.end_process_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #d35400;
-                color: white;
-                padding: 8px 15px;
-                border-radius: 5px;
-            }
-            QPushButton:hover {
-                background-color: #e67e22;
-            }
-            QPushButton:disabled {
-                background-color: #7f8c8d;
-                color: #bdc3c7;
-            }
-        """)
-        buttons_layout.addWidget(self.end_process_btn)
-
-        self.content_layout.addLayout(buttons_layout)
-
-        # Register as process
-        self.pid = ProcessManager().create_process("Task Manager")
-
-        # Update timer
-        self.update_timer = QTimer(self)
-        self.update_timer.timeout.connect(self.update_process_list)
-        self.update_timer.start(1000)  # Update every second
-
-        # Initial update
-        self.update_process_list()
-
-        # Connect selection change to update button state
-        self.process_table.itemSelectionChanged.connect(self.update_button_state)
-
-        # Initial button state
-        self.update_button_state()
-
-    def update_button_state(self):
-        selected_items = self.process_table.selectedItems()
-        if selected_items:
-            pid = int(self.process_table.item(selected_items[0].row(), 0).text())
-            self.end_process_btn.setEnabled(pid != self.pid)
-        else:
-            self.end_process_btn.setEnabled(False)
-
-    def update_process_list(self):
-        self.process_table.setRowCount(0)
-        processes = sorted(ProcessManager().get_all_processes(), key=lambda p: p.pid)
-
-        for process in processes:
-            row = self.process_table.rowCount()
-            self.process_table.insertRow(row)
-
-            # PID
-            pid_item = QTableWidgetItem(str(process.pid))
-            pid_item.setTextAlignment(Qt.AlignCenter)
-            self.process_table.setItem(row, 0, pid_item)
-
-            # Name
-            name_item = QTableWidgetItem(process.name)
-            self.process_table.setItem(row, 1, name_item)
-
-            # Status
-            status_item = QTableWidgetItem(process.status)
-            status_item.setTextAlignment(Qt.AlignCenter)
-            self.process_table.setItem(row, 2, status_item)
-
-            # Running Time
-            running_time = int(time.time() - process.start_time)
-            minutes = running_time // 60
-            seconds = running_time % 60
-            time_str = f"{minutes:02d}:{seconds:02d}"
-            time_item = QTableWidgetItem(time_str)
-            time_item.setTextAlignment(Qt.AlignCenter)
-            self.process_table.setItem(row, 3, time_item)
-
-    def end_selected_process(self):
-        selected_items = self.process_table.selectedItems()
-        if selected_items:
-            row = selected_items[0].row()
-            pid = int(self.process_table.item(row, 0).text())
-
-            # Don't allow terminating self
-            if pid == self.pid:
-                return
-
-            # Find the window associated with this PID
-            for window in self.parent().findChildren(Window):
-                if hasattr(window, 'pid') and window.pid == pid:
-                    window.close()
-                    break
-
-            ProcessManager().terminate_process(pid)
-            self.update_process_list()
-            self.update_button_state()
-
-    def closeEvent(self, event):
-        self.update_timer.stop()
-        ProcessManager().terminate_process(self.pid)
-        super().closeEvent(event)
-
 
 class Terminal(Window):
     def __init__(self, parent=None):
@@ -1404,129 +1326,165 @@ class FileExplorer(Window):
     def __init__(self, parent=None):
         super().__init__("File Explorer", width=800, height=600, parent=parent)
 
-        # Path bar layout
+        self.base_path = os.path.join(os.getcwd(), "My PC")
+        os.makedirs(self.base_path, exist_ok=True)
+        self.current_path = self.base_path
+        self.history = [self.current_path]
+        self.history_index = 0
+
         path_layout = QHBoxLayout()
+        self.back_btn = self.create_nav_btn("←", self.go_back)
+        self.forward_btn = self.create_nav_btn("→", self.go_forward)
+        self.up_btn = self.create_nav_btn("↑", self.go_up)
+
+        for btn in [self.back_btn, self.forward_btn, self.up_btn]:
+            path_layout.addWidget(btn)
+
         self.path_input = QLineEdit()
         self.path_input.setStyleSheet("""
             QLineEdit {
-                background-color: #333;
+                background-color: #2d2d2d;
                 color: white;
-                padding: 5px;
-                border: 1px solid #444;
-                border-radius: 3px;
+                padding: 6px 10px;
+                border: 1px solid #3a3a3a;
+                border-radius: 6px;
+                font-size: 13px;
             }
         """)
         self.path_input.returnPressed.connect(self.navigate_to_path)
-
-        # Navigation buttons
-        self.back_btn = QPushButton("←")
-        self.forward_btn = QPushButton("→")
-        self.up_btn = QPushButton("↑")
-        for btn in [self.back_btn, self.forward_btn, self.up_btn]:
-            btn.setFixedWidth(30)
-            btn.setStyleSheet("""
-                QPushButton {
-                    background-color: #444;
-                    color: white;
-                    border-radius: 3px;
-                }
-                QPushButton:hover {
-                    background-color: #555;
-                }
-            """)
-            path_layout.addWidget(btn)
-
         path_layout.addWidget(self.path_input)
         self.content_layout.addLayout(path_layout)
 
-        # File list
         self.file_list = QTableWidget()
         self.file_list.setColumnCount(4)
         self.file_list.setHorizontalHeaderLabels(["Name", "Size", "Type", "Modified"])
         self.file_list.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
+        self.file_list.setSelectionBehavior(QTableWidget.SelectRows)
+        self.file_list.setEditTriggers(QTableWidget.NoEditTriggers)
         self.file_list.setStyleSheet("""
             QTableWidget {
-                background-color: #333;
+                background-color: #1e1e1e;
                 color: white;
-                gridline-color: #444;
-                border: 1px solid #444;
+                gridline-color: #2a2a2a;
+                border: 1px solid #2d2d2d;
+                font-size: 13px;
+                border-radius: 6px;
+                selection-background-color: #0a84ff;
+                selection-color: white;
+            }
+            QTableWidget:focus {
+                outline: none;
             }
             QHeaderView::section {
-                background-color: #444;
+                background-color: #2d2d2d;
                 color: white;
-                padding: 5px;
-                border: 1px solid #555;
+                padding: 8px;
+                font-weight: bold;
+                border-bottom: 1px solid #444;
+            }
+            QTableWidget::item {
+                padding: 6px;
+            }
+            QTableWidget::item:selected {
+                background-color: #0a84ff;
+                color: white;
             }
         """)
         self.file_list.doubleClicked.connect(self.item_double_clicked)
         self.content_layout.addWidget(self.file_list)
 
-        # Initialize path and history
-        self.current_path = os.getcwd()
-        self.history = [self.current_path]
-        self.history_index = 0
-
-        # Connect navigation buttons
-        self.back_btn.clicked.connect(self.go_back)
-        self.forward_btn.clicked.connect(self.go_forward)
-        self.up_btn.clicked.connect(self.go_up)
-
-        # Update view
+        self.pid = ProcessManager().create_process("File Explorer")
         self.update_view()
 
-        # Register process
-        self.pid = ProcessManager().create_process("File Explorer")
+    def create_nav_btn(self, label, action):
+        btn = QPushButton(label)
+        btn.setFixedWidth(30)
+        btn.clicked.connect(action)
+        btn.setStyleSheet("""
+            QPushButton {
+                background-color: #2d2d2d;
+                color: white;
+                font-weight: bold;
+                border-radius: 6px;
+                border: 1px solid #444;
+                padding: 4px;
+            }
+            QPushButton:hover {
+                background-color: #3a3a3a;
+            }
+        """)
+        return btn
 
     def update_view(self):
-        self.path_input.setText(self.current_path)
+        self.path_input.setText(self.pretty_path(self.current_path))
         self.file_list.setRowCount(0)
 
         try:
             items = os.listdir(self.current_path)
             for item in sorted(items):
-                path = os.path.join(self.current_path, item)
+                full_path = os.path.join(self.current_path, item)
                 row = self.file_list.rowCount()
                 self.file_list.insertRow(row)
 
-                # Name
-                self.file_list.setItem(row, 0, QTableWidgetItem(item))
+                if self.current_path == self.base_path and item.lower().startswith("local disk"):
+                    icon = QIcon("disk.jpg")
+                elif os.path.isdir(full_path):
+                    icon = QIcon.fromTheme("folder")
+                else:
+                    icon = QIcon.fromTheme("text-x-generic")
+
+                name_item = QTableWidgetItem(icon, item)
+                self.file_list.setItem(row, 0, name_item)
 
                 try:
-                    stats = os.stat(path)
+                    stats = os.stat(full_path)
 
-                    # Size
-                    size = stats.st_size
-                    size_str = f"{size:,} bytes"
-                    if size > 1024 * 1024:
-                        size_str = f"{size / (1024 * 1024):.1f} MB"
-                    elif size > 1024:
-                        size_str = f"{size / 1024:.1f} KB"
+                    size_str = "-"
+                    if os.path.isfile(full_path):
+                        size = stats.st_size
+                        size_str = (
+                            f"{size / (1024 * 1024):.1f} MB" if size > 1024 * 1024 else
+                            f"{size / 1024:.1f} KB" if size > 1024 else
+                            f"{size:,} B"
+                        )
                     self.file_list.setItem(row, 1, QTableWidgetItem(size_str))
 
-                    # Type
-                    type_str = "Directory" if os.path.isdir(path) else "File"
+                    type_str = "Folder" if os.path.isdir(full_path) else "File"
                     self.file_list.setItem(row, 2, QTableWidgetItem(type_str))
 
-                    # Modified time
                     mod_time = datetime.fromtimestamp(stats.st_mtime).strftime("%Y-%m-%d %H:%M")
                     self.file_list.setItem(row, 3, QTableWidgetItem(mod_time))
 
                 except Exception as e:
-                    print(f"Error getting file info: {e}")
+                    print(f"Stat error: {e}")
 
         except Exception as e:
-            QMessageBox.warning(self, "Error", f"Cannot access directory: {str(e)}")
+            QMessageBox.warning(self, "Error", f"Cannot open folder: {e}")
+
+    def pretty_path(self, full_path):
+        if full_path.startswith(self.base_path):
+            rel = os.path.relpath(full_path, self.base_path)
+            return "My PC" if rel == "." else f"My PC/{rel.replace(os.sep, '/')}"
+        return full_path
+
+    def real_path(self, pretty):
+        if pretty.startswith("My PC"):
+            rest = pretty[6:].strip("/").replace("/", os.sep)
+            return os.path.join(self.base_path, rest)
+        return pretty
 
     def navigate_to_path(self):
-        path = self.path_input.text()
-        if os.path.exists(path):
+        path = self.real_path(self.path_input.text())
+        if os.path.exists(path) and os.path.isdir(path):
             self.add_to_history(path)
             self.current_path = path
             self.update_view()
+        else:
+            QMessageBox.warning(self, "Invalid Path", "The entered path does not exist.")
 
     def item_double_clicked(self, index):
-        item = self.file_list.item(index.row(), 0)
-        path = os.path.join(self.current_path, item.text())
+        name = self.file_list.item(index.row(), 0).text()
+        path = os.path.join(self.current_path, name)
         if os.path.isdir(path):
             self.add_to_history(path)
             self.current_path = path
@@ -1551,7 +1509,7 @@ class FileExplorer(Window):
 
     def go_up(self):
         parent = os.path.dirname(self.current_path)
-        if parent != self.current_path:
+        if parent != self.current_path and os.path.commonpath([self.base_path, parent]) == self.base_path:
             self.add_to_history(parent)
             self.current_path = parent
             self.update_view()
