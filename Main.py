@@ -1670,4 +1670,5 @@ if __name__ == "__main__":
     app = QApplication(sys.argv)
     desktop_window = DesktopWindow()
     desktop_window.show()
+    desktop_window.showFullScreen()
     sys.exit(app.exec_())
