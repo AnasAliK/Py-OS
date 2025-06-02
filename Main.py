@@ -482,14 +482,14 @@ class StartMenu(QFrame):
         # App buttons
         self.app_layout = QVBoxLayout()
         app_list = [
-            ("File Explorer", "icons/folder.png"),
-            ("Notepad", "icons/notepad.png"),
-            ("Calculator", "icons/calculator.png"),
-            ("Task Manager", "icons/task-manager.png"),
-            ("Browser", "icons/browser.png"),
-            ("Settings", "icons/settings.png"),
-            ("Terminal", "icons/terminal.png"),
-            ("Resource Monitor", "icons/Resource-Monitor.png")
+            ("File Explorer", "folder.png"),
+            ("Notepad", "notepad.png"),
+            ("Calculator", "calculator.png"),
+            ("Task Manager", "task.png"),
+      #     ("Browser", "icons/browser.png"),
+      #     ("Settings", "icons/settings.png"),
+            ("Terminal", "terminal.png"),
+            ("Resource Monitor", "Resource-Monitor.png")
         ]
 
         for app_name, icon_path in app_list:
@@ -528,6 +528,7 @@ class StartMenu(QFrame):
                 background-color: #444;
             }
         """)
+        power_btn.clicked.connect(QApplication.instance().quit)
         bottom_layout.addWidget(power_btn)
         main_layout.addLayout(bottom_layout)
 
@@ -607,23 +608,27 @@ class DesktopWindow(QWidget):
         self.foreground_layout.setContentsMargins(0, 0, 0, 0)
         self.foreground_layout.setSpacing(0)
 
-        # Desktop Icons Layout
-        self.desktop_layout = QHBoxLayout()
-        self.desktop_layout.setContentsMargins(40, 40, 40, 0)
-        self.desktop_layout.setSpacing(50)
+        # Desktop Icons Layout - changed to vertical layout for vertical icons
+        self.desktop_layout = QVBoxLayout()
+        self.desktop_layout.setContentsMargins(20, 20, 20, 0)  # smaller margins for neatness
+        self.desktop_layout.setSpacing(20)  # vertical space between icons
 
+        # New icons data example (small, vertical, like Windows)
         icons_data = [
-            ("folder.png", "Documents"),
-            ("folder.png", "Pictures"),
-            ("folder.png", "Music"),
-            ("folder.png", "Videos"),
-           # ("trash.png", "Recycle Bin"),
+            ("folder.png", "File Explorer"),
+            ("notepad.png", "Notepad"),
+            ("calculator.png", "Calculator"),
+            ("task.png", "Task Manager"),
+            ("terminal.png", "Terminal"),
+            ("Resource-Monitor.png", "Resource Monitor"),
         ]
 
         for icon_path, label in icons_data:
             icon = DesktopIcon(icon_path, label, self)
+            # Adjust icon size here (assuming DesktopIcon has a method to resize icons)
+            icon.setIconSize(QSize(48, 48))  # smaller icon size like Windows desktop
             self.icons.append(icon)
-            self.desktop_layout.addWidget(icon, alignment=Qt.AlignTop)
+            self.desktop_layout.addWidget(icon, alignment=Qt.AlignTop | Qt.AlignLeft)
 
         self.foreground_layout.addLayout(self.desktop_layout)
         self.foreground_layout.addStretch()
@@ -644,6 +649,8 @@ class DesktopWindow(QWidget):
         # Start Menu
         self.start_menu = StartMenu(self)
         self.start_menu.hide()
+
+
 
     def resizeEvent(self, event):
         # Resize wallpaper to match window
@@ -809,67 +816,104 @@ class Calculator(Window):
         ProcessManager().terminate_process(self.pid)
         super().closeEvent(event)
 
+
 class ResourceMonitor(Window):
     def __init__(self, parent=None):
-        super().__init__("Resource Monitor", width=600, height=400, parent=parent)
+        super().__init__("Resource Monitor", width=700, height=450, parent=parent)
 
         # Process table
         self.process_table = QTableWidget()
-        self.process_table.setColumnCount(5)  # Update to 5 columns
+        self.process_table.setColumnCount(5)
         self.process_table.setHorizontalHeaderLabels(["PID", "Name", "State", "Priority", "CPU Usage"])
-        self.process_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
-        self.process_table.setSelectionBehavior(QTableWidget.SelectRows)
-        self.process_table.setSelectionMode(QTableWidget.SingleSelection)
+
+        # Header style with gradient and bold font
+        self.process_table.horizontalHeader().setStyleSheet("""
+            QHeaderView::section {
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                                            stop:0 #3c3f41, stop:1 #282a2d);
+                color: white;
+                font-weight: bold;
+                padding: 5px;
+                border: 1px solid #4a4a4a;
+            }
+        """)
+        self.process_table.horizontalHeader().setDefaultAlignment(Qt.AlignCenter)
+
+        # Resize behavior
+        self.process_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Fixed)
+        self.process_table.setColumnWidth(0, 60)  # PID
+        self.process_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)  # Name stretches
+        self.process_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.Fixed)
+        self.process_table.setColumnWidth(2, 100)  # State
+        self.process_table.horizontalHeader().setSectionResizeMode(3, QHeaderView.Fixed)
+        self.process_table.setColumnWidth(3, 80)  # Priority
+        self.process_table.horizontalHeader().setSectionResizeMode(4, QHeaderView.Fixed)
+        self.process_table.setColumnWidth(4, 100)  # CPU Usage
+
+        # Table style
+        self.process_table.setAlternatingRowColors(True)
         self.process_table.setStyleSheet("""
             QTableWidget {
-                background-color: #333;
+                background-color: #1e1e1e;
                 color: white;
                 gridline-color: #444;
+                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+                font-size: 13px;
                 border: 1px solid #444;
-                border-radius: 5px;
-            }
-            QHeaderView::section {
-                background-color: #444;
-                color: white;
-                padding: 5px;
-                border: 1px solid #555;
+                border-radius: 6px;
             }
             QTableWidget::item {
-                padding: 5px;
+                padding: 6px;
             }
             QTableWidget::item:selected {
                 background-color: #0078d7;
+                color: white;
+            }
+            QTableWidget::item:alternate {
+                background-color: #252525;
             }
         """)
+        self.process_table.setSelectionBehavior(QTableWidget.SelectRows)
+        self.process_table.setSelectionMode(QTableWidget.SingleSelection)
         self.content_layout.addWidget(self.process_table)
 
         # Refresh button
         self.refresh_btn = QPushButton("Refresh")
         self.refresh_btn.clicked.connect(self.update_process_list)
+        self.refresh_btn.setCursor(Qt.PointingHandCursor)
+        self.refresh_btn.setFixedWidth(100)
         self.refresh_btn.setStyleSheet("""
             QPushButton {
                 background-color: #0078d7;
                 color: white;
+                font-weight: bold;
                 padding: 8px 15px;
-                border-radius: 5px;
+                border-radius: 6px;
+                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+                font-size: 14px;
             }
             QPushButton:hover {
                 background-color: #005a9e;
             }
+            QPushButton:pressed {
+                background-color: #003f6b;
+            }
         """)
-        self.content_layout.addWidget(self.refresh_btn)
+        self.content_layout.addWidget(self.refresh_btn, alignment=Qt.AlignRight)
 
         # Update timer
         self.update_timer = QTimer(self)
         self.update_timer.timeout.connect(self.update_process_list)
-        self.update_timer.start(1000)  # Update every second
+        self.update_timer.start(1500)  # Update every 1.5 seconds
+
         self.pid = ProcessManager().create_process("Resource Monitor")
+
         # Initial update
         self.update_process_list()
 
     def update_process_list(self):
         self.process_table.setRowCount(0)
-        processes = ProcessScheduler().get_all_processes()  # Get processes from ProcessScheduler
+        processes = ProcessScheduler().get_all_processes()  # Assuming dicts with required keys
 
         for process in processes:
             row = self.process_table.rowCount()
@@ -894,10 +938,22 @@ class ResourceMonitor(Window):
             priority_item.setTextAlignment(Qt.AlignCenter)
             self.process_table.setItem(row, 3, priority_item)
 
-            # CPU Usage
-            cpu_usage_item = QTableWidgetItem(f"{process['cpu_usage']}%")
-            cpu_usage_item.setTextAlignment(Qt.AlignCenter)
-            self.process_table.setItem(row, 4, cpu_usage_item)
+            # CPU Usage with colored text based on usage
+            cpu_val = process['cpu_usage']
+            cpu_text = f"{cpu_val}%"
+            cpu_item = QTableWidgetItem(cpu_text)
+            cpu_item.setTextAlignment(Qt.AlignCenter)
+
+            # Color gradient: green < 30%, yellow < 70%, red otherwise
+            if cpu_val < 30:
+                cpu_color = "#6abe30"  # green
+            elif cpu_val < 70:
+                cpu_color = "#e6b800"  # yellow
+            else:
+                cpu_color = "#d9534f"  # red
+            cpu_item.setForeground(QColor(cpu_color))
+
+            self.process_table.setItem(row, 4, cpu_item)
 
     def closeEvent(self, event):
         ProcessManager().terminate_process(self.pid)
@@ -1083,75 +1139,85 @@ class TaskManager(Window):
 
 class Notepad(Window):
     def __init__(self, parent=None):
-        super().__init__("Notepad", width=600, height=400, parent=parent)
+        super().__init__("Untitled - Notepad", width=600, height=400, parent=parent)
 
-        # Create menu bar
+        # Menu bar styled for dark theme
         self.menu_bar = QMenuBar()
         self.menu_bar.setStyleSheet("""
             QMenuBar {
-                background-color: #333;
-                color: white;
-                border: none;
+                background-color: #2e2e2e;
+                color: #ddd;
+                border-bottom: 1px solid #444;
+                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+                font-size: 12pt;
+            }
+            QMenuBar::item {
+                spacing: 3px;
+                padding: 4px 12px;
+                background: transparent;
             }
             QMenuBar::item:selected {
-                background-color: #0078d7;
+                background-color: #3a6fd6;
+                color: white;
             }
             QMenu {
-                background-color: #333;
-                color: white;
-                border: 1px solid #555;
+                background-color: #2e2e2e;
+                border: 1px solid #444;
+                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+                font-size: 12pt;
+                color: #ddd;
             }
             QMenu::item:selected {
-                background-color: #0078d7;
+                background-color: #3a6fd6;
+                color: white;
             }
         """)
 
-        # File menu
         file_menu = self.menu_bar.addMenu("File")
 
-        # New file action
         new_action = QAction("New", self)
         new_action.setShortcut("Ctrl+N")
         new_action.triggered.connect(self.new_file)
         file_menu.addAction(new_action)
 
-        # Open file action
-        open_action = QAction("Open", self)
+        open_action = QAction("Open...", self)
         open_action.setShortcut("Ctrl+O")
         open_action.triggered.connect(self.open_file)
         file_menu.addAction(open_action)
 
-        # Save action
         save_action = QAction("Save", self)
         save_action.setShortcut("Ctrl+S")
         save_action.triggered.connect(self.save_file)
         file_menu.addAction(save_action)
 
-        # Save As action
-        save_as_action = QAction("Save As", self)
+        save_as_action = QAction("Save As...", self)
         save_as_action.setShortcut("Ctrl+Shift+S")
         save_as_action.triggered.connect(self.save_file_as)
         file_menu.addAction(save_as_action)
 
         self.main_layout.insertWidget(1, self.menu_bar)
 
-        # Create text editor
+        # Text editor with dark theme styling
         self.text_edit = QTextEdit()
         self.text_edit.setStyleSheet("""
             QTextEdit {
-                background-color: #2b2b2b;
-                color: #ffffff;
-                border: none;
+                background-color: #1e1e1e;
+                color: #f0f0f0;
+                border: 1px solid #444;
                 font-family: 'Consolas', monospace;
                 font-size: 12pt;
+                padding: 8px;
+                selection-background-color: #3a6fd6;
+                selection-color: white;
+            }
+            QTextEdit:focus {
+                border: 1px solid #6a94ff;
             }
         """)
         self.content_layout.addWidget(self.text_edit)
 
-        # Keep track of current file
         self.current_file = None
 
-        # Register process
         self.pid = ProcessManager().create_process("Notepad")
 
     def new_file(self):
@@ -1168,7 +1234,6 @@ class Notepad(Window):
                 "",
                 "Text Files (*.txt);;All Files (*)"
             )
-
             if file_name:
                 try:
                     with open(file_name, 'r', encoding='utf-8') as file:
@@ -1176,11 +1241,7 @@ class Notepad(Window):
                     self.current_file = file_name
                     self.setWindowTitle(f"{os.path.basename(file_name)} - Notepad")
                 except Exception as e:
-                    QMessageBox.warning(
-                        self,
-                        "Error",
-                        f"Could not open file: {str(e)}"
-                    )
+                    QMessageBox.warning(self, "Error", f"Could not open file: {str(e)}")
 
     def save_file(self):
         if self.current_file:
@@ -1202,25 +1263,52 @@ class Notepad(Window):
                     file.write(self.text_edit.toPlainText())
                 self.current_file = file_path
                 self.setWindowTitle(f"{os.path.basename(file_path)} - Notepad")
+                self.text_edit.document().setModified(False)
                 return True
             except Exception as e:
-                QMessageBox.warning(
-                    self,
-                    "Error",
-                    f"Could not save file: {str(e)}"
-                )
+                QMessageBox.warning(self, "Error", f"Could not save file: {str(e)}")
         return False
 
     def maybe_save(self):
         if not self.text_edit.document().isModified():
             return True
 
-        reply = QMessageBox.warning(
-            self,
-            "Save Changes",
-            "Do you want to save the changes you made?",
-            QMessageBox.Save | QMessageBox.Discard | QMessageBox.Cancel
-        )
+        msg_box = QMessageBox(self)
+        msg_box.setWindowTitle("Save Changes")
+        msg_box.setText("Do you want to save the changes you made?")
+        msg_box.setStandardButtons(QMessageBox.Save | QMessageBox.Discard | QMessageBox.Cancel)
+        msg_box.setDefaultButton(QMessageBox.Save)
+
+        # Dark style for QMessageBox
+        msg_box.setStyleSheet("""
+            QMessageBox {
+                background-color: #2e2e2e;
+                color: #ddd;
+                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+                font-size: 12pt;
+                border: 1px solid #444;
+            }
+            QPushButton {
+                background-color: #3a6fd6;
+                color: white;
+                border: none;
+                padding: 6px 12px;
+                border-radius: 4px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #2a54b0;
+            }
+            QPushButton:pressed {
+                background-color: #1f3c7a;
+            }
+            QPushButton:disabled {
+                background-color: #555;
+                color: #999;
+            }
+        """)
+
+        reply = msg_box.exec()
 
         if reply == QMessageBox.Save:
             return self.save_file()
@@ -1239,87 +1327,146 @@ class Notepad(Window):
 
 class Terminal(Window):
     def __init__(self, parent=None):
-        super().__init__("Terminal", width=600, height=400, parent=parent)
+        super().__init__("Terminal", width=700, height=450, parent=parent)
 
-        # Terminal output
+        # Terminal output (read-only, multiline)
         self.terminal_output = QTextEdit()
         self.terminal_output.setReadOnly(True)
         self.terminal_output.setStyleSheet("""
             QTextEdit {
-                background-color: #1a1a1a;
+                background-color: #1e1e1e;
                 color: #00ff00;
-                font-family: 'Courier New', monospace;
+                font-family: 'Consolas', 'Courier New', monospace;
                 font-size: 14px;
                 border: none;
-                padding: 5px;
+                padding: 10px;
             }
         """)
         self.content_layout.addWidget(self.terminal_output)
 
-        # Command input
+        # Command input (single-line)
         self.command_input = QLineEdit()
         self.command_input.setStyleSheet("""
             QLineEdit {
-                background-color: #1a1a1a;
+                background-color: #1e1e1e;
                 color: #00ff00;
-                font-family: 'Courier New', monospace;
+                font-family: 'Consolas', 'Courier New', monospace;
                 font-size: 14px;
                 border: none;
-                padding: 5px;
+                padding: 8px;
+            }
+            QLineEdit:focus {
+                outline: none;
             }
         """)
         self.command_input.returnPressed.connect(self.execute_command)
         self.content_layout.addWidget(self.command_input)
 
-        # Current working directory
-        self.current_dir = os.getcwd()
+        # Set initial current directory to user's home folder (more Windows-like)
+        self.current_dir = os.path.expanduser("~")
 
-        # Initialize terminal
-        self.write_output(f"Welcome to Python Terminal\n{self.current_dir}$ ")
+        # Display welcome message and prompt
+        self.write_output("Welcome to Py-OS Terminal (Windows Based)")
+        self.display_prompt()
 
         # Register process
         self.pid = ProcessManager().create_process("Terminal")
 
     def write_output(self, text):
         self.terminal_output.append(text)
+        # Auto-scroll to bottom after new output
+        scrollbar = self.terminal_output.verticalScrollBar()
+        scrollbar.setValue(scrollbar.maximum())
+
+    def display_prompt(self):
+        # Show just the folder name, like Windows cmd
+        folder_name = os.path.basename(self.current_dir) or self.current_dir
+        prompt_text = f"{folder_name}> "
+        self.write_output(prompt_text)
+        self.command_input.setFocus()
 
     def execute_command(self):
         command = self.command_input.text().strip()
-        self.write_output(command)
+        if not command:
+            self.display_prompt()
+            self.command_input.clear()
+            return
+
+        # Echo the command input in output window (like real terminals do)
+        folder_name = os.path.basename(self.current_dir) or self.current_dir
+        self.write_output(f"{folder_name}> {command}")
+
         self.command_input.clear()
 
         try:
-            if command.startswith('cd '):
-                # Change directory
-                new_dir = command[3:].strip()
-                if os.path.exists(new_dir):
-                    os.chdir(new_dir)
-                    self.current_dir = os.getcwd()
+            # Handle cd separately for better path management
+            if command.startswith("cd"):
+                parts = command.split(maxsplit=1)
+                if len(parts) == 1 or parts[1] == "":
+                    # cd without args goes to home dir
+                    new_dir = os.path.expanduser("~")
                 else:
-                    self.write_output("Directory not found")
+                    new_dir = parts[1].strip().replace('"', '')
 
-            elif command == 'ls' or command == 'dir':
-                # List directory contents
-                files = os.listdir(self.current_dir)
-                self.write_output('\n'.join(files))
+                    # Handle relative and absolute paths
+                    if not os.path.isabs(new_dir):
+                        new_dir = os.path.join(self.current_dir, new_dir)
 
-            elif command == 'pwd':
-                # Print working directory
+                if os.path.isdir(new_dir):
+                    self.current_dir = os.path.normpath(new_dir)
+                else:
+                    self.write_output(f"System cannot find the path specified: {new_dir}")
+
+            elif command in ["dir", "ls"]:
+                # List directory contents with details like Windows 'dir'
+                try:
+                    entries = os.listdir(self.current_dir)
+                    entries.sort()
+                    output_lines = []
+                    for e in entries:
+                        full_path = os.path.join(self.current_dir, e)
+                        if os.path.isdir(full_path):
+                            output_lines.append(f"<DIR>       {e}")
+                        else:
+                            size = os.path.getsize(full_path)
+                            output_lines.append(f"          {size:>10} {e}")
+                    self.write_output("\n".join(output_lines))
+                except Exception as e:
+                    self.write_output(f"Error listing directory: {e}")
+
+            elif command == "cls":
+                # Clear screen command
+                self.terminal_output.clear()
+
+            elif command == "pwd":
                 self.write_output(self.current_dir)
 
-            elif command:
-                # Execute other commands
-                result = os.popen(command).read()
-                self.write_output(result)
+            else:
+                # Execute other commands via subprocess for safety and output capture
+                import subprocess
+                process = subprocess.Popen(
+                    command,
+                    shell=True,
+                    cwd=self.current_dir,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True
+                )
+                stdout, stderr = process.communicate()
+                if stdout:
+                    self.write_output(stdout.strip())
+                if stderr:
+                    self.write_output(stderr.strip())
 
         except Exception as e:
             self.write_output(f"Error: {str(e)}")
 
-        self.write_output(f"\n{self.current_dir}$ ")
+        self.display_prompt()
 
     def closeEvent(self, event):
         ProcessManager().terminate_process(self.pid)
         super().closeEvent(event)
+
 
 
 class FileExplorer(Window):
@@ -1427,7 +1574,7 @@ class FileExplorer(Window):
                 self.file_list.insertRow(row)
 
                 if self.current_path == self.base_path and item.lower().startswith("local disk"):
-                    icon = QIcon("disk.jpg")
+                    icon = QIcon("disk.png")
                 elif os.path.isdir(full_path):
                     icon = QIcon.fromTheme("folder")
                 else:
