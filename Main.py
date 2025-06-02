@@ -30,7 +30,8 @@ from PyQt5.QtWidgets import (
     QGridLayout, QLineEdit, QTextEdit, QTableWidget, QTableWidgetItem, QHeaderView
 )
 from PyQt5.QtCore import Qt, QTimer, QSize, QPoint
-from PyQt5.QtGui import QIcon, QPixmap, QPalette, QBrush, QLinearGradient, QColor, QFontDatabase, QFont, QPainter
+from PyQt5.QtGui import QIcon, QPixmap, QPalette, QBrush, QLinearGradient, QColor, QFontDatabase, QFont, QPainter, \
+    QCursor
 from datetime import datetime
 import time
 import random
@@ -220,82 +221,80 @@ class ProcessManager:
         return self.processes.values()
 
 
+
+from datetime import datetime
+
 import os
 from PyQt5.QtWidgets import (
     QFrame, QHBoxLayout, QPushButton, QLabel, QWidget, QSizePolicy
 )
-from PyQt5.QtCore import QTimer, Qt, QSize
+from PyQt5.QtCore import QTimer, QSize, Qt, QDateTime
 from PyQt5.QtGui import QIcon, QPalette
-from datetime import datetime
 
 class Taskbar(QFrame):
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setFixedHeight(40)
+        self.setFixedHeight(45)
         self.setStyleSheet("""
             QFrame {
                 background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
-                                            stop:0 #2a2a2a, stop:1 #444444);
-                border-top: 1px solid #333;
+                                            stop:0 #2a2a2a, stop:1 #3c3c3c);
+                border-top: 1px solid #222;
             }
             QPushButton#startButton {
                 background-color: #0078d7;
-                color: white;
-                font-weight: bold;
-                border-radius: 5px;
-                padding: 5px 15px;
+                border-radius: 6px;
+                padding: 6px;
             }
             QPushButton#startButton:hover {
                 background-color: #005a9e;
             }
             QLabel#clockLabel {
                 color: white;
-                font-size: 12pt;
-                padding: 0px 10px;
+                font-size: 13px;
+                padding: 0px 8px;
+            }
+            QLabel#trayIcon {
+                padding: 0px 5px;
             }
         """)
 
         layout = QHBoxLayout()
-        layout.setContentsMargins(10, 0, 10, 0)
-        layout.setSpacing(15)
+        layout.setContentsMargins(8, 0, 8, 0)
+        layout.setSpacing(10)
 
+        # Start button
         self.start_button = QPushButton()
         self.start_button.setObjectName("startButton")
-
-        # Load icon from start.png in same directory
         icon_path = os.path.join(os.path.dirname(__file__), "start.png")
-        icon = QIcon(icon_path)
-        self.start_button.setIcon(icon)
-        self.start_button.setIconSize(QSize(24, 24))  # Adjust icon size as needed
-
-        # Adjust button size to fit icon nicely
+        self.start_button.setIcon(QIcon(icon_path))
+        self.start_button.setIconSize(QSize(28, 28))
         self.start_button.setFixedSize(40, 40)
+        layout.addWidget(self.start_button, alignment=Qt.AlignVCenter)
 
-        # Remove text from button
-        # (No need to call setText because we want only the icon)
+        # Spacer to push clock to right
+        layout.addStretch()
 
-        # Force button text color (icon color handled by image, so no effect here)
-        palette = self.start_button.palette()
-        palette.setColor(QPalette.ButtonText, Qt.white)
-        self.start_button.setPalette(palette)
-        self.start_button.setStyleSheet(self.start_button.styleSheet())  # refresh style
-
-        layout.addWidget(self.start_button, alignment=Qt.AlignVCenter | Qt.AlignLeft)
-
-        spacer = QWidget()
-        spacer.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
-        layout.addWidget(spacer)
-
+        # System tray icons (volume, wifi, battery)
+        for name in ["volume", "wifi", "battery"]:
+            icon_label = QLabel()
+            icon_label.setObjectName("trayIcon")
+            icon_path = os.path.join(os.path.dirname(__file__), f"{name}.png")
+            icon_label.setPixmap(QIcon(icon_path).pixmap(20, 20))
+            icon_label.setToolTip(f"{name.capitalize()} status")
+            layout.addWidget(icon_label)
+#clock
         self.clock_label = QLabel()
         self.clock_label.setObjectName("clockLabel")
-        self.clock_label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
-
-        palette = self.clock_label.palette()
-        palette.setColor(QPalette.WindowText, Qt.white)
-        self.clock_label.setPalette(palette)
-        self.clock_label.setStyleSheet(self.clock_label.styleSheet())  # refresh style
-
-        layout.addWidget(self.clock_label, alignment=Qt.AlignVCenter | Qt.AlignRight)
+        self.clock_label.setAlignment(Qt.AlignVCenter | Qt.AlignRight)
+        self.clock_label.setStyleSheet("""
+            QLabel#clockLabel {
+                color: white;
+                font-size: 13px;
+                padding: 0px 8px;
+            }
+        """)
+        layout.addWidget(self.clock_label)
 
         self.setLayout(layout)
 
@@ -305,11 +304,11 @@ class Taskbar(QFrame):
         self.update_clock()
 
     def update_clock(self):
-        now = datetime.now().strftime("%H:%M:%S")
-        self.clock_label.setText(now)
+        now = QDateTime.currentDateTime()
+        time_str = now.toString("hh:mm AP\nddd dd MMM")  # Windows-style format
+        self.clock_label.setText(time_str)
 
     def closeEvent(self, event):
-        """Properly clean up resources when widget is closed."""
         self.timer.stop()
         super().closeEvent(event)
 
@@ -337,7 +336,7 @@ class DesktopIcon(QToolButton):  # Changed from QPushButton
         """)
         self.setCursor(Qt.PointingHandCursor)
         self.setToolButtonStyle(Qt.ToolButtonTextUnderIcon)
-        self.clicked.connect(self.activate)
+   #     self.clicked.connect(self.activate)
         try:
             if not os.path.exists(icon_path):
                 raise FileNotFoundError(f"Icon file not found: {icon_path}")
@@ -520,8 +519,8 @@ class StartMenu(QFrame):
         power_btn.setStyleSheet("""
             QPushButton {
                 color: white;
-                font-size: 16px;
-                border-radius: 6px;
+                font-size: 14px;
+                border-radius: 8px;
                 background-color: #333;
             }
             QPushButton:hover {
@@ -568,6 +567,8 @@ from PyQt5.QtCore import Qt, QPoint
 from PyQt5.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel
 from PyQt5.QtCore import Qt, QPoint
 from PyQt5.QtGui import QPixmap
+
+
 
 import os
 from PyQt5.QtWidgets import (
@@ -625,10 +626,12 @@ class DesktopWindow(QWidget):
 
         for icon_path, label in icons_data:
             icon = DesktopIcon(icon_path, label, self)
-            # Adjust icon size here (assuming DesktopIcon has a method to resize icons)
-            icon.setIconSize(QSize(48, 48))  # smaller icon size like Windows desktop
+            icon.setIconSize(QSize(48, 48))
             self.icons.append(icon)
             self.desktop_layout.addWidget(icon, alignment=Qt.AlignTop | Qt.AlignLeft)
+
+            # Connect desktop icon clicks to launch apps using StartMenu method
+            icon.clicked.connect(lambda checked=False, app_name=label: self.launch_app(app_name))
 
         self.foreground_layout.addLayout(self.desktop_layout)
         self.foreground_layout.addStretch()
@@ -649,7 +652,7 @@ class DesktopWindow(QWidget):
         # Start Menu
         self.start_menu = StartMenu(self)
         self.start_menu.hide()
-
+        self.launch_app = self.start_menu.launch_app
 
 
     def resizeEvent(self, event):
