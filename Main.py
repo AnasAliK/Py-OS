@@ -220,6 +220,14 @@ class ProcessManager:
         return self.processes.values()
 
 
+import os
+from PyQt5.QtWidgets import (
+    QFrame, QHBoxLayout, QPushButton, QLabel, QWidget, QSizePolicy
+)
+from PyQt5.QtCore import QTimer, Qt, QSize
+from PyQt5.QtGui import QIcon, QPalette
+from datetime import datetime
+
 class Taskbar(QFrame):
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -246,13 +254,32 @@ class Taskbar(QFrame):
                 padding: 0px 10px;
             }
         """)
+
         layout = QHBoxLayout()
         layout.setContentsMargins(10, 0, 10, 0)
         layout.setSpacing(15)
 
-        self.start_button = QPushButton("Start")
+        self.start_button = QPushButton()
         self.start_button.setObjectName("startButton")
-        self.start_button.setFixedSize(80, 30)
+
+        # Load icon from start.png in same directory
+        icon_path = os.path.join(os.path.dirname(__file__), "start.png")
+        icon = QIcon(icon_path)
+        self.start_button.setIcon(icon)
+        self.start_button.setIconSize(QSize(24, 24))  # Adjust icon size as needed
+
+        # Adjust button size to fit icon nicely
+        self.start_button.setFixedSize(40, 40)
+
+        # Remove text from button
+        # (No need to call setText because we want only the icon)
+
+        # Force button text color (icon color handled by image, so no effect here)
+        palette = self.start_button.palette()
+        palette.setColor(QPalette.ButtonText, Qt.white)
+        self.start_button.setPalette(palette)
+        self.start_button.setStyleSheet(self.start_button.styleSheet())  # refresh style
+
         layout.addWidget(self.start_button, alignment=Qt.AlignVCenter | Qt.AlignLeft)
 
         spacer = QWidget()
@@ -262,6 +289,12 @@ class Taskbar(QFrame):
         self.clock_label = QLabel()
         self.clock_label.setObjectName("clockLabel")
         self.clock_label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+
+        palette = self.clock_label.palette()
+        palette.setColor(QPalette.WindowText, Qt.white)
+        self.clock_label.setPalette(palette)
+        self.clock_label.setStyleSheet(self.clock_label.styleSheet())  # refresh style
+
         layout.addWidget(self.clock_label, alignment=Qt.AlignVCenter | Qt.AlignRight)
 
         self.setLayout(layout)
@@ -469,67 +502,108 @@ class StartMenu(QFrame):
             QMessageBox.critical(self, "Error", f"Failed to launch {app_name}: {str(e)}")
 
 
+from PyQt5.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout
+from PyQt5.QtCore import Qt, QPoint
+
+from PyQt5.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel
+from PyQt5.QtCore import Qt, QPoint
+from PyQt5.QtGui import QPixmap
+
+import os
+from PyQt5.QtWidgets import (
+    QWidget, QVBoxLayout, QHBoxLayout, QLabel
+)
+from PyQt5.QtGui import QPixmap
+from PyQt5.QtCore import Qt, QPoint
+
 class DesktopWindow(QWidget):
     def __init__(self):
         super().__init__()
-        self.open_windows = []  # Keep track of open windows
+
         self.setWindowTitle("Python OS Desktop")
-        self.resize(1024, 700)
+        self.resize(1280, 720)
         self.setMinimumSize(800, 600)
 
-        self.setStyleSheet("""
-            QWidget {
-                background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-                                            stop:0 #004080, stop:1 #0066cc);
-                font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
-            }
-        """)
-
         self.icons = []
+        self.open_windows = []
 
-        layout = QVBoxLayout()
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(0)
+        # === Wallpaper Layer ===
+        self.wallpaper_label = QLabel(self)
+        self.wallpaper_label.setScaledContents(True)
+        self.wallpaper_label.setGeometry(self.rect())
 
-        # Desktop icon layout
+        image_path = os.path.join(os.path.dirname(__file__), "wallpaper.jpg")
+        pixmap = QPixmap(image_path)
+
+        if pixmap.isNull():
+            print("⚠️ Wallpaper failed to load from:", image_path)
+        else:
+            print("✅ Wallpaper loaded successfully from:", image_path)
+            self.wallpaper_label.setPixmap(
+                pixmap.scaled(self.size(), Qt.KeepAspectRatioByExpanding, Qt.SmoothTransformation)
+            )
+
+        # === Foreground Layout ===
+        self.foreground_layout = QVBoxLayout()
+        self.foreground_layout.setContentsMargins(0, 0, 0, 0)
+        self.foreground_layout.setSpacing(0)
+
+        # Desktop Icons Layout
         self.desktop_layout = QHBoxLayout()
-        self.desktop_layout.setContentsMargins(20, 20, 20, 0)
-        self.desktop_layout.setSpacing(40)
+        self.desktop_layout.setContentsMargins(40, 40, 40, 0)
+        self.desktop_layout.setSpacing(50)
 
-        # Add icons
         icons_data = [
-            ("icons/folder.png", "Documents"),
-            ("icons/folder.png", "Pictures"),
-            ("icons/folder.png", "Music"),
-            ("icons/folder.png", "Videos"),
-            ("icons/trash.png", "Recycle Bin"),
+            ("folder.png", "Documents"),
+            ("folder.png", "Pictures"),
+            ("folder.png", "Music"),
+            ("folder.png", "Videos"),
+           # ("trash.png", "Recycle Bin"),
         ]
 
         for icon_path, label in icons_data:
             icon = DesktopIcon(icon_path, label, self)
             self.icons.append(icon)
-            self.desktop_layout.addWidget(icon)
+            self.desktop_layout.addWidget(icon, alignment=Qt.AlignTop)
 
-        layout.addLayout(self.desktop_layout)
-        layout.addStretch()
+        self.foreground_layout.addLayout(self.desktop_layout)
+        self.foreground_layout.addStretch()
 
         # Taskbar
         self.taskbar = Taskbar()
+        self.taskbar.setFixedHeight(40)
+        self.taskbar.setStyleSheet("""
+            background-color: rgba(0, 0, 0, 0.5);
+            border-top: 1px solid #555;
+        """)
         self.taskbar.start_button.clicked.connect(self.toggle_start_menu)
-        layout.addWidget(self.taskbar)
+        self.foreground_layout.addWidget(self.taskbar)
 
-        self.setLayout(layout)
+        # Set main layout
+        self.setLayout(self.foreground_layout)
 
+        # Start Menu
         self.start_menu = StartMenu(self)
         self.start_menu.hide()
 
-        self.open_windows = []
+    def resizeEvent(self, event):
+        # Resize wallpaper to match window
+        image_path = os.path.join(os.path.dirname(__file__), "wallpaper.jpg")
+        pixmap = QPixmap(image_path)
+        if not pixmap.isNull():
+            self.wallpaper_label.setGeometry(self.rect())
+            self.wallpaper_label.setPixmap(
+                pixmap.scaled(self.size(), Qt.KeepAspectRatioByExpanding, Qt.SmoothTransformation)
+            )
+        super().resizeEvent(event)
 
     def toggle_start_menu(self):
         if self.start_menu.isVisible():
             self.start_menu.hide()
         else:
-            pos = self.taskbar.start_button.mapToGlobal(QPoint(0, -self.start_menu.height()))
+            pos = self.taskbar.start_button.mapToGlobal(
+                QPoint(0, -self.start_menu.height())
+            )
             self.start_menu.move(pos)
             self.start_menu.show()
             self.start_menu.raise_()
@@ -541,43 +615,98 @@ class DesktopWindow(QWidget):
         self.open_windows.append(window)
 
 
-class Calculator(Window):
-    def __init__(self, parent=None):
-        super().__init__("Calculator", width=300, height=400, parent=parent)
+from PyQt5.QtWidgets import (
+    QWidget, QVBoxLayout, QGridLayout, QPushButton, QLineEdit
+)
+from PyQt5.QtCore import Qt
+from PyQt5.QtGui import QFont
 
-        # Replace default content
+from PyQt5.QtWidgets import (
+    QWidget, QVBoxLayout, QGridLayout, QPushButton, QLineEdit
+)
+from PyQt5.QtCore import Qt
+from PyQt5.QtGui import QFont
+
+class Calculator(Window):
+    DISPLAY_STYLE = """
+        QLineEdit {
+            background-color: #2c3e50;
+            color: white;
+            font-size: 24px;
+            padding: 10px;
+            border: none;
+            border-radius: 5px;
+        }
+    """
+
+    BUTTON_STYLE = """
+        QPushButton {
+            background-color: #34495e;
+            color: white;
+            font-size: 18px;
+            min-width: 50px;
+            min-height: 50px;
+            border-radius: 6px;
+        }
+        QPushButton:hover {
+            background-color: #3d566e;
+        }
+        QPushButton:pressed {
+            background-color: #2c3e50;
+        }
+    """
+
+    CLEAR_BUTTON_STYLE = """
+        QPushButton {
+            background-color: #e74c3c;
+            color: white;
+            font-size: 18px;
+            min-height: 50px;
+            border-radius: 6px;
+            margin-top: 12px;
+        }
+        QPushButton:hover {
+            background-color: #c0392b;
+        }
+    """
+
+    def __init__(self, parent=None):
+        super().__init__("Calculator", width=300, height=420, parent=parent)
+
+        # Remove previous content
         if hasattr(self, 'content'):
             self.content.setParent(None)
             self.content.deleteLater()
 
-        # Create main content widget and layout
-        main_content = QWidget()
-        content_layout = QVBoxLayout()
-        main_content.setLayout(content_layout)
+        self.current_equation = ""
+        self.pid = ProcessManager().create_process("Calculator")
 
-        # Display
-        self.display = QLineEdit()
-        self.display.setStyleSheet("""
-            QLineEdit {
-                background-color: #333;
-                color: white;
-                font-size: 24px;
-                padding: 10px;
-                border: 1px solid #444;
-                border-radius: 5px;
-                margin-bottom: 10px;
-            }
-        """)
-        self.display.setFixedHeight(50)
-        self.display.setAlignment(Qt.AlignRight)
-        self.display.setReadOnly(True)
+        # Create and set main layout
+        main_content = QWidget()
+        content_layout = QVBoxLayout(main_content)
+        content_layout.setContentsMargins(10, 10, 10, 10)
+        content_layout.setSpacing(10)
+
+        self.display = self.create_display()
         content_layout.addWidget(self.display)
 
-        # Buttons grid
-        buttons_widget = QWidget()
-        button_grid = QGridLayout()
-        buttons_widget.setLayout(button_grid)
-        button_grid.setSpacing(5)
+        content_layout.addLayout(self.create_buttons_grid())
+        content_layout.addWidget(self.create_clear_button())
+
+        self.layout().addWidget(main_content)
+
+    def create_display(self):
+        display = QLineEdit()
+        display.setStyleSheet(self.DISPLAY_STYLE)
+        display.setFont(QFont("Consolas", 16))
+        display.setFixedHeight(50)
+        display.setAlignment(Qt.AlignRight)
+        display.setReadOnly(True)
+        return display
+
+    def create_buttons_grid(self):
+        layout = QGridLayout()
+        layout.setSpacing(6)
 
         buttons = [
             ('7', 0, 0), ('8', 0, 1), ('9', 0, 2), ('/', 0, 3),
@@ -586,61 +715,23 @@ class Calculator(Window):
             ('0', 3, 0), ('.', 3, 1), ('=', 3, 2), ('+', 3, 3),
         ]
 
-        for button_text, row, col in buttons:
-            button = QPushButton(button_text)
-            button.setStyleSheet("""
-                QPushButton {
-                    background-color: #444;
-                    color: white;
-                    font-size: 18px;
-                    min-width: 50px;
-                    min-height: 50px;
-                    border-radius: 5px;
-                    padding: 5px;
-                }
-                QPushButton:hover {
-                    background-color: #555;
-                }
-                QPushButton:pressed {
-                    background-color: #666;
-                }
-            """)
-            button.clicked.connect(lambda checked, text=button_text: self.button_clicked(text))
-            button_grid.addWidget(button, row, col)
+        for text, row, col in buttons:
+            button = QPushButton(text)
+            button.setStyleSheet(self.BUTTON_STYLE)
+            button.clicked.connect(lambda _, t=text: self.button_clicked(t))
+            layout.addWidget(button, row, col)
 
-        content_layout.addWidget(buttons_widget)
+        return layout
 
-        # Clear button
-        clear_button = QPushButton("Clear")
-        clear_button.setStyleSheet("""
-            QPushButton {
-                background-color: #d35400;
-                color: white;
-                font-size: 18px;
-                min-height: 50px;
-                border-radius: 5px;
-                padding: 5px;
-                margin-top: 10px;
-            }
-            QPushButton:hover {
-                background-color: #e67e22;
-            }
-        """)
-        clear_button.clicked.connect(self.clear_display)
-        content_layout.addWidget(clear_button)
-
-        # Add the main content widget to the window layout
-        self.layout().addWidget(main_content)
-
-        self.current_equation = ""
-
-        # Register process
-        self.pid = ProcessManager().create_process("Calculator")
+    def create_clear_button(self):
+        clear_btn = QPushButton("Clear")
+        clear_btn.setStyleSheet(self.CLEAR_BUTTON_STYLE)
+        clear_btn.clicked.connect(self.clear_display)
+        return clear_btn
 
     def button_clicked(self, text):
         if text == '=':
             try:
-                # Evaluate the expression safely
                 result = eval(self.current_equation, {"__builtins__": {}}, {})
                 self.display.setText(str(result))
                 self.current_equation = str(result)
@@ -658,7 +749,6 @@ class Calculator(Window):
     def closeEvent(self, event):
         ProcessManager().terminate_process(self.pid)
         super().closeEvent(event)
-
 
 class ResourceMonitor(Window):
     def __init__(self, parent=None):
