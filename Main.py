@@ -272,6 +272,27 @@ class Taskbar(QFrame):
         self.start_button.setFixedSize(40, 40)
         layout.addWidget(self.start_button, alignment=Qt.AlignVCenter)
 
+
+        # 🔹 Search bar (like Windows)
+        self.search_bar = QLineEdit()
+        self.search_bar.setPlaceholderText("Type here to search")
+        self.search_bar.setFixedHeight(30)
+        self.search_bar.setFixedWidth(250)
+        self.search_bar.setStyleSheet("""
+    QLineEdit {
+        background-color: rgba(240, 240, 240, 0.4);  /* 40% opacity */
+        border: 1px solid #ccc;
+        border-radius: 6px;
+        padding-left: 10px;
+        font-size: 13px;
+    }
+    QLineEdit:focus {
+        border: 1px solid #0078d7;
+        background-color: rgba(255, 255, 255, 0.4);  /* 40% opacity on focus */
+    }
+""")
+        layout.addWidget(self.search_bar, alignment=Qt.AlignVCenter)
+
         # Spacer to push clock to right
         layout.addStretch()
 
@@ -507,7 +528,7 @@ class StartMenu(QFrame):
 
         # Bottom section for user & power (optional)
         bottom_layout = QHBoxLayout()
-        user_label = QLabel("👤 User")
+        user_label = QLabel("👤 Py-OS")
         user_label.setStyleSheet("color: white; font-size: 13px;")
         bottom_layout.addWidget(user_label)
 
