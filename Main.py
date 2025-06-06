@@ -1,5 +1,7 @@
 import sys
 import warnings
+import io
+sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 import os
@@ -45,6 +47,51 @@ from datetime import datetime
 # - Only 3 processes can run simultaneously
 # - Processes randomly switch between states to simulate real system behavior
 
+# memory management
+class MemoryPage:
+    def __init__(self):
+        self.is_used = False
+        self.process_id = None
+        self.last_used = time.time()
+
+class MemoryManager:
+    def __init__(self, total_pages=100):
+        self.pages = [MemoryPage() for _ in range(total_pages)]
+        self.page_faults = 0
+
+    def allocate_page(self, pid):
+        for page in self.pages:
+            if not page.is_used:
+                page.is_used = True
+                page.process_id = pid
+                page.last_used = time.time()
+                return True
+        self.page_faults += 1
+        return False
+
+    def free_pages(self, pid):
+        for page in self.pages:
+            if page.process_id == pid:
+                page.is_used = False
+                page.process_id = None
+
+class ProcessMemory:
+    def __init__(self, pid):
+        self.pid = pid
+        self.page_count = 0
+
+    def allocate(self, memory_manager, pages_needed):
+        allocated = 0
+        for _ in range(pages_needed):
+            if memory_manager.allocate_page(self.pid):
+                allocated += 1
+        self.page_count += allocated
+        return allocated
+
+    def free(self, memory_manager):
+        memory_manager.free_pages(self.pid)
+        self.page_count = 0  # Reset page_count when freed
+
 
 class ProcessState(Enum):
     READY = "Ready"
@@ -55,7 +102,7 @@ class ProcessState(Enum):
 
 
 class DummyProcess:
-    def __init__(self, pid, name, priority):
+    def __init__(self, pid, name, priority, memory_manager):
         self.pid = pid
         self.name = name
         self.priority = priority
@@ -65,6 +112,13 @@ class DummyProcess:
         self.last_state_change = time.time()
         self.thread = None
         self.is_running = True
+        self.status = ""
+        # Memory allocation based on priority
+        self.memory = ProcessMemory(pid)
+        pages_needed = priority * 2
+        self.memory.allocate(memory_manager, pages_needed)
+        self.memory_manager = memory_manager
+
 
     def run(self):
         while self.is_running:
@@ -105,22 +159,28 @@ class DummyProcess:
         self.is_running = False
         self.state = ProcessState.TERMINATED
 
+_DUMMY_PROCESSES_CREATED = False
 
 class ProcessScheduler:
     def __init__(self):
-        self.processes = {}
-        self.current_pid = 2000  # Starting PID
-
-        # Create dummy processes
+        self.process_manager = ProcessManager()
+        self.memory_manager = MemoryManager()
+        self.current_pid = ProcessManager._next_pid  # Sync PID counter
+        self._dummy_processes_created = False
         self.create_dummy_processes()
 
-        # Start scheduler thread
         self.scheduler_thread = Thread(target=self.schedule_processes, daemon=True)
         self.scheduler_thread.start()
 
+
+
     def create_dummy_processes(self):
+        global _DUMMY_PROCESSES_CREATED
+
+        if _DUMMY_PROCESSES_CREATED:
+            return
         process_types = [
-            ("Background Service", 1),  # Low priority
+            ("Background Service", 1),
             ("System Monitor", 3),
             ("File Indexer", 1),
             ("Update Service", 2),
@@ -131,23 +191,15 @@ class ProcessScheduler:
             ("Print Spooler", 2),
             ("Search Indexer", 1)
         ]
-
         for name, priority in process_types:
-            self.create_process(name, priority)
+            self.process_manager.create_process(name, priority, self.memory_manager)
+        _DUMMY_PROCESSES_CREATED = True  # Set the global flag after creation
 
-    def create_process(self, name, priority):
-        pid = self.current_pid
-        self.current_pid += 1
 
-        process = DummyProcess(pid, name, priority)
-        self.processes[pid] = process
-        process.start()
-        return pid
+
 
     def terminate_process(self, pid):
-        if pid in self.processes:
-            self.processes[pid].stop()
-            del self.processes[pid]
+        self.process_manager.terminate_process(pid)
 
     def get_all_processes(self):
         return [
@@ -157,33 +209,29 @@ class ProcessScheduler:
                 'state': p.state.value,
                 'priority': p.priority,
                 'cpu_usage': p.cpu_usage,
-                'running_time': int(time.time() - p.start_time)
+                'running_time': int(time.time() - p.start_time),
+                'page_count': p.memory.page_count  # Include page_count here
             }
-            for p in self.processes.values()
+            for p in self.process_manager.get_all_processes()
         ]
 
     def schedule_processes(self):
         while True:
-            running_processes = [p for p in self.processes.values() if p.state == ProcessState.RUNNING]
-            ready_processes = [p for p in self.processes.values() if p.state == ProcessState.READY]
-
+            processes = list(self.process_manager.get_all_processes())
+            running = [p for p in processes if p.state == ProcessState.RUNNING]
+            ready = [p for p in processes if p.state == ProcessState.READY]
             # Sort by priority (higher number = higher priority)
-            ready_processes.sort(key=lambda x: x.priority, reverse=True)
+            ready.sort(key=lambda x: x.priority, reverse=True)
 
-            max_running = 3  # Maximum concurrent running processes
+            while len(running) > 3:     # Maximum concurrent running processes 3
+                running.pop().change_state(ProcessState.READY)
 
-            # Stop excess running processes
-            while len(running_processes) > max_running:
-                process = running_processes.pop()
-                process.change_state(ProcessState.READY)
+            while len(running) < 3 and ready:
+                p = ready.pop(0)
+                p.change_state(ProcessState.RUNNING)
+                running.append(p)
 
-            # Start ready processes if we have capacity
-            while len(running_processes) < max_running and ready_processes:
-                process = ready_processes.pop(0)
-                process.change_state(ProcessState.RUNNING)
-                running_processes.append(process)  # Add to running processes list
-
-            time.sleep(1)  # Schedule every second
+            time.sleep(1)       # Schedule every second
 
 
 class Process:
@@ -204,15 +252,17 @@ class ProcessManager:
             cls._instance.processes = {}
         return cls._instance
 
-    def create_process(self, name):
+    def create_process(self, name, priority, memory_manager):
         pid = ProcessManager._next_pid
         ProcessManager._next_pid += 1
-        process = Process(pid, name, time.time())
+        process = DummyProcess(pid, name, priority, memory_manager)
         self.processes[pid] = process
+        process.start()
         return pid
 
     def terminate_process(self, pid):
         if pid in self.processes:
+            self.processes[pid].stop()
             del self.processes[pid]
             return True
         return False
@@ -776,7 +826,7 @@ class Calculator(Window):
             self.content.deleteLater()
 
         self.current_equation = ""
-        self.pid = ProcessManager().create_process("Calculator")
+        self.pid = ProcessManager().create_process("Calculator",priority=1,memory_manager=MemoryManager())
 
         # Create and set main layout
         main_content = QWidget()
@@ -850,14 +900,14 @@ class Calculator(Window):
 
 class ResourceMonitor(Window):
     def __init__(self, parent=None):
-        super().__init__("Resource Monitor", width=700, height=450, parent=parent)
+        super().__init__("Resource Monitor", width=800, height=450, parent=parent)
 
         # Process table
         self.process_table = QTableWidget()
-        self.process_table.setColumnCount(5)
-        self.process_table.setHorizontalHeaderLabels(["PID", "Name", "State", "Priority", "CPU Usage"])
+        self.process_table.setColumnCount(6)
+        self.process_table.setHorizontalHeaderLabels(["PID", "Name", "State", "Priority", "CPU Usage", "Pages Used"])
 
-        # Header style with gradient and bold font
+        # Header styling
         self.process_table.horizontalHeader().setStyleSheet("""
             QHeaderView::section {
                 background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
@@ -870,18 +920,15 @@ class ResourceMonitor(Window):
         """)
         self.process_table.horizontalHeader().setDefaultAlignment(Qt.AlignCenter)
 
-        # Resize behavior
-        self.process_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Fixed)
-        self.process_table.setColumnWidth(0, 60)  # PID
-        self.process_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)  # Name stretches
-        self.process_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.Fixed)
+        # Column sizing
+        self.process_table.setColumnWidth(0, 60)   # PID
         self.process_table.setColumnWidth(2, 100)  # State
-        self.process_table.horizontalHeader().setSectionResizeMode(3, QHeaderView.Fixed)
-        self.process_table.setColumnWidth(3, 80)  # Priority
-        self.process_table.horizontalHeader().setSectionResizeMode(4, QHeaderView.Fixed)
+        self.process_table.setColumnWidth(3, 80)   # Priority
         self.process_table.setColumnWidth(4, 100)  # CPU Usage
+        self.process_table.setColumnWidth(5, 100)  # Pages Used
+        self.process_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)  # Name stretches
 
-        # Table style
+        # Style
         self.process_table.setAlternatingRowColors(True)
         self.process_table.setStyleSheet("""
             QTableWidget {
@@ -932,64 +979,63 @@ class ResourceMonitor(Window):
         """)
         self.content_layout.addWidget(self.refresh_btn, alignment=Qt.AlignRight)
 
-        # Update timer
+        # Timer for periodic updates
         self.update_timer = QTimer(self)
         self.update_timer.timeout.connect(self.update_process_list)
-        self.update_timer.start(1500)  # Update every 1.5 seconds
+        self.update_timer.start(1500)
 
-        self.pid = ProcessManager().create_process("Resource Monitor")
+        self.pid = ProcessManager().create_process("Resource Monitor", priority=2, memory_manager=MemoryManager())
 
         # Initial update
         self.update_process_list()
 
     def update_process_list(self):
         self.process_table.setRowCount(0)
-        processes = ProcessScheduler().get_all_processes()  # Assuming dicts with required keys
+        processes = ProcessScheduler().get_all_processes()
 
         for process in processes:
             row = self.process_table.rowCount()
             self.process_table.insertRow(row)
 
-            # PID
             pid_item = QTableWidgetItem(str(process['pid']))
             pid_item.setTextAlignment(Qt.AlignCenter)
             self.process_table.setItem(row, 0, pid_item)
 
-            # Name
             name_item = QTableWidgetItem(process['name'])
             self.process_table.setItem(row, 1, name_item)
 
-            # State
             state_item = QTableWidgetItem(process['state'])
             state_item.setTextAlignment(Qt.AlignCenter)
             self.process_table.setItem(row, 2, state_item)
 
-            # Priority
             priority_item = QTableWidgetItem(str(process['priority']))
             priority_item.setTextAlignment(Qt.AlignCenter)
             self.process_table.setItem(row, 3, priority_item)
 
-            # CPU Usage with colored text based on usage
+            # CPU Usage
             cpu_val = process['cpu_usage']
             cpu_text = f"{cpu_val}%"
             cpu_item = QTableWidgetItem(cpu_text)
             cpu_item.setTextAlignment(Qt.AlignCenter)
-
-            # Color gradient: green < 30%, yellow < 70%, red otherwise
             if cpu_val < 30:
-                cpu_color = "#6abe30"  # green
+                cpu_item.setForeground(QColor("#6abe30"))
             elif cpu_val < 70:
-                cpu_color = "#e6b800"  # yellow
+                cpu_item.setForeground(QColor("#e6b800"))
             else:
-                cpu_color = "#d9534f"  # red
-            cpu_item.setForeground(QColor(cpu_color))
-
+                cpu_item.setForeground(QColor("#d9534f"))
             self.process_table.setItem(row, 4, cpu_item)
+
+            # Pages Used
+            pages_used = process['page_count']  # Ensure this is correctly retrieved
+            page_item = QTableWidgetItem(str(pages_used))
+            page_item.setTextAlignment(Qt.AlignCenter)
+            self.process_table.setItem(row, 5, page_item)
 
     def closeEvent(self, event):
         ProcessManager().terminate_process(self.pid)
         self.update_timer.stop()
         super().closeEvent(event)
+
 
 
 from PyQt5.QtWidgets import (
@@ -1079,7 +1125,7 @@ class TaskManager(Window):
         self.content_layout.addLayout(buttons_layout)
 
         # Register Task Manager process
-        self.pid = ProcessManager().create_process("Task Manager")
+        self.pid = ProcessManager().create_process("Task Manager",priority=3,memory_manager=MemoryManager())
 
         # Timer
         self.update_timer = QTimer(self)
@@ -1249,7 +1295,7 @@ class Notepad(Window):
 
         self.current_file = None
 
-        self.pid = ProcessManager().create_process("Notepad")
+        self.pid = ProcessManager().create_process("Notepad",priority=1,memory_manager=MemoryManager())
 
     def new_file(self):
         if self.maybe_save():
@@ -1395,7 +1441,7 @@ class Terminal(Window):
 
         # Set initial current directory to user's home folder (more Windows-like)
         # Set initial current directory to actual location
-        self.current_dir = r"C:\Users\anasa\Desktop\Py-OS\My PC\Local Disk C"
+        self.current_dir = r"C:\Users\anasa\OneDrive\Desktop\GBS\Py-OS\My PC"
 
         # Set display name (e.g., to mimic 'C:' instead of long path)
         self.display_name = "C:"
@@ -1405,7 +1451,7 @@ class Terminal(Window):
         self.display_prompt()
 
         # Register process
-        self.pid = ProcessManager().create_process("Terminal")
+        self.pid = ProcessManager().create_process("Terminal",priority=3,memory_manager=MemoryManager())
 
     def write_output(self, text):
         self.terminal_output.append(text)
@@ -1573,7 +1619,7 @@ class FileExplorer(Window):
         self.file_list.doubleClicked.connect(self.item_double_clicked)
         self.content_layout.addWidget(self.file_list)
 
-        self.pid = ProcessManager().create_process("File Explorer")
+        self.pid = ProcessManager().create_process("File Explorer",priority=2,memory_manager=MemoryManager())
         self.update_view()
 
     def create_nav_btn(self, label, action):
@@ -1703,5 +1749,5 @@ if __name__ == "__main__":
     app = QApplication(sys.argv)
     desktop_window = DesktopWindow()
     desktop_window.show()
-    desktop_window.showFullScreen()
+    #desktop_window.showFullScreen()
     sys.exit(app.exec_())
